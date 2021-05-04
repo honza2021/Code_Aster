@@ -1,0 +1,192 @@
+DEBUT()
+
+depl = (
+    0,
+    0,
+    1,
+    2,
+    2,
+    -1.2,
+    3,
+    1.8,
+    4,
+    -1.5,
+    5,
+    1.5,
+    6,
+    -2.0,
+    7,
+    0,
+)      
+ 
+fdepl = DEFI_FONCTION(
+    NOM_PARA='INST',
+    VALE=depl,
+    PROL_DROITE='CONSTANT',
+)
+
+inst = DEFI_LIST_REEL(VALE=(1, 2, 3, 4, 5, 6, 7))     
+      
+      
+MA = LIRE_MAILLAGE(FORMAT='MED',
+                   UNITE=20)
+MA = DEFI_GROUP(
+    MAILLAGE=MA,
+    reuse=MA,
+  CREA_GROUP_MA=_F(
+  NOM='mass',UNION=('PSHELL_1', 'PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6','CGVEGA_40','CGVEGA_41','PBEAML_42','PBEAML_43','PBEAML_44','PBEAML_45','PBEAML_46',)),)
+
+    
+  
+MO = AFFE_MODELE(AFFE=(_F(GROUP_MA=('PSHELL_1', 'PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6',),
+                          MODELISATION=('DKT',),
+                          PHENOMENE='MECANIQUE',),
+                       _F(GROUP_MA=( 'CGVEGA_40','CGVEGA_41','PBEAML_42','PBEAML_43','PBEAML_44','PBEAML_45','PBEAML_46', ),
+
+                              MODELISATION=('POU_D_E', ),
+
+                              PHENOMENE='MECANIQUE'),) ,  
+                 MAILLAGE=MA)
+
+CARELEM = AFFE_CARA_ELEM(COQUE=_F(EPAIS=1.5,
+                                  GROUP_MA=('PSHELL_1','PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6', )),
+                         POUTRE=(_F(CARA=('R','EP', ),
+                                 GROUP_MA=('CGVEGA_40','CGVEGA_41', ),
+                                 SECTION='CERCLE',
+                                 VALE=(13.5, 2.0)),
+                             _F(CARA=('R','EP', ),
+                                 GROUP_MA=('PBEAML_42','PBEAML_43','PBEAML_44','PBEAML_45','PBEAML_46', ),
+                                 SECTION='CERCLE',
+                                 VALE=(20.,2.0 ))),         
+                         MODELE=MO)
+
+                                  
+MAT = DEFI_MATERIAU(
+            ELAS=_F(  E = 700000.,  NU = 0.33,  RHO = 2.7E-9),
+        )
+      
+CHMAT = AFFE_MATERIAU(AFFE=(_F(MATER=MAT,
+                              GROUP_MA=('PSHELL_1','PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6',),),
+                            _F(MATER=MAT,
+                              GROUP_MA=('CGVEGA_40','CGVEGA_41','PBEAML_42','PBEAML_43','PBEAML_44','PBEAML_45','PBEAML_46',),),),
+                      MAILLAGE=MA,
+                      MODELE=MO)
+
+BC = AFFE_CHAR_MECA(DDL_IMPO=(_F(DX=0.0,
+                                  DY=0.0,
+                                  DZ=0.0,
+                                  GROUP_NO=('NfixZP', 'NfixZL',)),
+                              _F(DX=0.0,
+                                  DY=0.0,
+                                  GROUP_NO=('NfixPP','NfixPL',))),
+                      MODELE=MO)
+load = AFFE_CHAR_MECA_F(
+       MODELE=MO,
+       DDL_IMPO=(
+                _F(  GROUP_NO = ('NfixPP','NfixPL',),  DZ = fdepl),
+            )
+)                         
+                         
+                         
+                         
+grav = AFFE_CHAR_MECA(MODELE=MO,
+                       PESANTEUR=_F(DIRECTION=(0.0, -1.0, 0.0),
+                                    GRAVITE=9810,
+                                    GROUP_MA=('PSHELL_1', 'PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6', )))
+nrbe2=9
+MPC = AFFE_CHAR_MECA(LIAISON_SOLIDE=(tuple(_F(GROUP_NO=('NS%01g' %(i+1),'NM%01g' %(i+1))) for i in range(nrbe2))),
+
+                    MODELE=MO)
+                    
+                    
+reslin = MECA_STATIQUE(CARA_ELEM=CARELEM,
+                       CHAM_MATER=CHMAT,
+                       EXCIT=(_F(CHARGE=load),
+                              _F(CHARGE=grav),
+                              _F(CHARGE=BC),
+                              _F(CHARGE=MPC),),
+                       LIST_INST=inst,       
+                       MODELE=MO)
+                       
+                       
+values = CALC_CHAMP(CRITERES=('SIEQ_ELGA', 'SIEQ_ELNO',  ),
+                  RESULTAT=reslin,
+                  GROUP_MA=('PSHELL_1','PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6',),)
+elno = POST_CHAMP(EXTR_COQUE=_F(NIVE_COUCHE='MOY',
+                                NOM_CHAM=('SIEQ_ELNO', ),
+                                NUME_COUCHE=1),
+                  RESULTAT=values)              
+               
+IMPR_RESU(FORMAT='MED',
+
+          RESU=(_F(MAILLAGE=MA,
+
+                  RESULTAT=reslin),
+                _F(MAILLAGE=MA,
+
+                  RESULTAT=values),
+                _F(MAILLAGE=MA,
+
+                  RESULTAT=elno),),
+
+
+          UNITE=80)
+          
+#hist = POST_RELEVE_T(
+#    ACTION=_F(
+#        OPERATION='EXTRACTION',
+#        INTITULE='amp',
+#        RESULTAT=values,
+#        NOM_CHAM='SIEQ_ELNO',
+#        GROUP_NO='NS1',
+#        NOM_CMP='VMIS_SG',
+#        #~ LIST_ORDRE=(2,3),
+#    ),
+#    INFO=1,
+#)
+
+#fhist = RECU_FONCTION(
+#    TABLE=hist,
+#    PARA_X='INST',
+#    PARA_Y='VMIS_SG',
+#)
+
+#damPF = POST_FATIGUE(
+#    CHARGEMENT='UNIAXIAL',
+#    HISTOIRE=_F(SIGM=fhist, ),
+#    COMPTAGE='RCCM',
+#    DOMMAGE='WOHLER',
+#    MATER=MAT,
+    #~ CORR_SIGM_MOYE='GOODMAN',
+#    CORR_SIGM_MOYE='GERBER',
+#    CUMUL='LINEAIRE',
+#    INFO=2,
+#)
+
+#IMPR_TABLE(
+#    TABLE=damPF,
+#    FORMAT='TABLEAU',
+#)
+
+
+#results to display (deformation, stress)
+
+massin=POST_ELEM(
+    MODELE=MO,
+    CHAM_MATER=CHMAT,
+    CARA_ELEM=CARELEM,
+    MASS_INER=_F(
+        GROUP_MA=('mass',),
+    ),
+    TITRE= 'masse',
+);
+
+
+
+IMPR_TABLE (
+	TABLE=massin,
+	FORMAT_R='1PE12.3',
+	UNITE=82)
+
+
+FIN()
