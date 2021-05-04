@@ -1,0 +1,184 @@
+# coding=utf-8
+# --------------------------------------------------------------------
+# Copyright (C) 1991 - 2017 - EDF R&D - www.code-aster.org
+# This file is part of code_aster.
+# 
+# code_aster is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# code_aster is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with code_aster.  If not, see <http://www.gnu.org/licenses/>.
+# --------------------------------------------------------------------
+# CAS_TEST__: SDLX03A
+# SDLX03/A                 COMMANDES                             5/03/91
+# ASSEMBLAGE DE PLAQUES RECTANGULAIRES MINCES ENTRETOISEES
+# 2 PLAQUES HORIZONTALES: 0.375*0.20*0.005 M
+# 2 PLAQUES VERTICALES:   0.375*0.05*0.005 M       REF: SFM.VPCS SDLX03
+# MODELISATION DKT
+# ======================================================================
+DEBUT(CODE=_F(NIV_PUB_WEB='INTERNET'),
+      DEBUG=_F(SDVERI='OUI'))
+
+MA = LIRE_MAILLAGE(FORMAT='MED',
+                   UNITE=20)
+MA = DEFI_GROUP(
+    MAILLAGE=MA,
+    reuse=MA,
+  CREA_GROUP_MA=_F(
+  NOM='mass',UNION=('PSHELL_1', 'PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6','CGVEGA_40','CGVEGA_41','PBEAML_42','PBEAML_43','PBEAML_43','PBEAML_44','PBEAML_45','PBEAML_46',)),)
+  
+MO = AFFE_MODELE(AFFE=(_F(GROUP_MA=('PSHELL_1', 'PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6',),
+                          MODELISATION=('DKT',),
+                          PHENOMENE='MECANIQUE',),
+                       _F(GROUP_MA=( 'CGVEGA_40','CGVEGA_41','PBEAML_42','PBEAML_43','PBEAML_43','PBEAML_44','PBEAML_45','PBEAML_46', ),
+
+                              MODELISATION=('POU_D_E', ),
+
+                              PHENOMENE='MECANIQUE'),) ,  
+                 MAILLAGE=MA)
+
+CARELEM = AFFE_CARA_ELEM(COQUE=_F(EPAIS=1.5,
+                                  GROUP_MA=('PSHELL_1','PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6', )),
+                         POUTRE=(_F(CARA=('R', ),
+                                 GROUP_MA=('CGVEGA_40','CGVEGA_41', ),
+                                 SECTION='CERCLE',
+                                 VALE=(3, )),
+                             _F(CARA=('R', ),
+                                 GROUP_MA=('PBEAML_42','PBEAML_43','PBEAML_44','PBEAML_45','PBEAML_46', ),
+                                 SECTION='CERCLE',
+                                 VALE=(5., ))),         
+                         MODELE=MO)
+
+MAT = DEFI_MATERIAU(ELAS=_F(E=70000.0,
+                            NU=0.33,
+                            RHO=2.7e-9))
+
+CHMAT = AFFE_MATERIAU(AFFE=_F(MATER=MAT,
+                              TOUT='OUI'),
+                      MAILLAGE=MA)
+
+BC = AFFE_CHAR_MECA(DDL_IMPO=(_F(DRZ=0.0,
+                                  DX=0.0,
+                                  DY=0.0,
+                                  DZ=0.0,
+                                  GROUP_NO=('NfixPP','NfixPL', )),
+                                  _F(DRZ=0.0,
+                                  DX=0.0,
+                                  DY=0.0,
+                                  DZ=0.0,
+                                  GROUP_NO=('NfixZP', 'NfixZL',))),
+                      MODELE=MO)
+load = AFFE_CHAR_MECA(FORCE_NODALE=(_F(FX=0,
+                                         FY=-100,
+                                         FZ=0,
+                                         GROUP_NO=('NsilaRidP','NsilaRidL')),
+                                    _F(FX=0,
+                                         FY=-600.0,
+                                         FZ=0,
+                                         GROUP_NO=('NsilaSedl')),
+                                    _F(FX=0,
+                                         FY=-900.0,
+                                         FZ=0,
+                                         GROUP_NO=('NsilaPedL','NsilaPedP')),},     
+                                         
+
+                         MODELE=linmod)
+grav = AFFE_CHAR_MECA(MODELE=MO,
+                       PESANTEUR=_F(DIRECTION=(0.0, -1.0, 0.0),
+                                    GRAVITE=9810,
+                                    GROUP_MA=('PSHELL_1', 'PSHELL_2','PSHELL_3','PSHELL_4','PSHELL_5','PSHELL_6', )))
+nrbe2=9
+MPC = AFFE_CHAR_MECA(LIAISON_SOLIDE=(tuple(_F(GROUP_NO=('NS%01g' %(i+1),'NM%01g' %(i+1))) for i in range(nrbe2))),
+
+                    MODELE=MO)
+                    
+                    
+reslin = MECA_STATIQUE(CARA_ELEM=CARELEM,
+                       CHAM_MATER=CHMAT,
+                       EXCIT=(_F(CHARGE=load),
+                              _F(CHARGE=grav),
+                              _F(CHARGE=BC),
+                              _F(CHARGE=MPC),),
+                       MODELE=MO)
+                       
+                       
+#res1 = IMPR_RESU(FORMAT='MED',UNITE=80,
+#    RESU=_F(RESULTAT=reslin, CARA_ELEM=CARELEM,
+#            GROUP_MA=('CGVEGA_40'), NOM_CHAM =("SIEF_ELGA",), NOM_CMP=('N',),),)
+
+#res2=IMPR_RESU_SP(
+#         RESULTAT=reslin,
+#         GROUP_MA='CGVEGA_40',
+#         RESU=_F( NOM_CHAM='SIEF_ELGA',
+#                 NOM_CMP='N',),
+#         UNITE=81)
+
+values = CALC_CHAMP(CRITERES=('SIEQ_ELNO', ),
+                  CONTRAINTE=('SIEF_ELNO', 'SIPO_ELNO', 'EFGE_NOEU', 'SIPO_NOEU'),
+
+                  FORCE=('REAC_NODA', 'FORC_NODA'),
+                  RESULTAT=reslin)
+elno = POST_CHAMP(EXTR_COQUE=_F(NIVE_COUCHE='MOY',
+                                NOM_CHAM=('SIEQ_ELNO', ),
+                                NUME_COUCHE=1),
+                  RESULTAT=values)              
+elnovo = CALC_CHAMP(CRITERES=('SIEQ_NOEU', ),
+                    RESULTAT=values)                  
+IMPR_RESU(FORMAT='MED',
+
+          RESU=(_F(MAILLAGE=MA,
+
+                  RESULTAT=reslin),
+                _F(MAILLAGE=MA,
+
+                  RESULTAT=values),
+                _F(MAILLAGE=MA,
+
+                  RESULTAT=elno),
+                _F(MAILLAGE=MA,
+
+                  RESULTAT=elnovo),    
+                  ),
+
+          UNITE=80)
+
+#results to display (deformation, stress)
+reacFo = CALC_CHAMP(
+    CHAM_MATER=MAT,
+    FORCE=('REAC_NODA',),
+    MODELE=MO,
+    RESULTAT=reslin,
+    TOUT_ORDRE='OUI'
+)
+
+Reac_Sum=POST_RELEVE_T(ACTION=_F(OPERATION='EXTRACTION',
+                                 INTITULE='ReacForc',
+                                 RESULTAT=reacFo,
+                                 NOM_CHAM='REAC_NODA',
+                                 GROUP_NO=('NfixPP','NfixPL','NfixZP', 'NfixZL',)
+                                 RESULTANTE=('DX','DY','DZ',),),);
+massin=POST_ELEM(
+    MODELE=MO,
+    CHAM_MATER=MAT,
+    CARA_ELEM=CARELEM,
+    MASS_INER=_F(
+        GROUP_MA=('mass',),
+    ),
+    TITRE= 'masse',
+);
+IMPR_TABLE(TABLE=Reac_Sum,
+           UNITE=81);
+
+
+IMPR_TABLE (
+	TABLE=massin,
+	FORMAT_R='1PE12.3',
+	UNITE=82)
+FIN()
